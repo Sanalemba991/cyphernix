@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
 import { Variants } from 'framer-motion';
-
+import Last from  "../../../public/Ama.jpg"
 // Animation variants
 const containerVariants : Variants = {
   hidden: { opacity: 0 },
@@ -96,7 +96,7 @@ function AnimatedServiceCard({ service, index }: ServiceCardProps) {
       className="relative group"
     >
       {/* Card - lifts on hover and shows stronger shadow */}
-      <div className="relative bg-white shadow-xl p-8 transition-transform duration-300 group-hover:-translate-y-4 group-hover:shadow-2xl">
+      <div className="relative bg-white shadow-xl p-8 transition-transform duration-300  group-hover:shadow-2xl">
         <h2 className="text-[#2b4a8f] text-3xl font-bold mb-4">
           {service.title}
         </h2>
@@ -145,14 +145,25 @@ export default function Service() {
       animate={sectionInView ? "visible" : "hidden"}
       className="min-h-screen bg-gradient-to-b from-gray-50 to-white"
     >
-      <section className="bg-[#2b4a8f] py-32 px-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-16">
-            <AnimatedHeader />
-          </div>
-        </div>
-      </section>
+      <section className="relative py-32 px-6 overflow-hidden">
+  {/* Background Image with parallax effect */}
+  <div 
+    className="absolute inset-0 bg-cover bg-center bg-fixed"
+    style={{
+      backgroundImage: `url('/Ama.jpg')`,
+    }}
+  />
+  
+  {/* Dark overlay */}
+  <div className="absolute inset-0 bg-black/40"></div>
+  
+  <div className="max-w-7xl mx-auto relative z-10">
+    {/* Header */}
+    <div className="mb-16">
+      <AnimatedHeader />
+    </div>
+  </div>
+</section>
 
       {/* Overlapping services grid - sits above the blue section */}
       <div className="relative -mt-24 md:-mt-32 z-30 px-6 pb-32">

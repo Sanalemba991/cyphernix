@@ -1,242 +1,277 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { useInView } from 'react-intersection-observer';
-import { Variants } from 'framer-motion';
+import { motion, useScroll, useTransform, useSpring, useInView, useMotionValue, animate } from 'framer-motion';
+import { useRef, useEffect } from 'react';
 
-// Animation variants
-const containerVariants : Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.3 // Increased stagger for more separation
-    }
-  }
-};
-
-const itemVariants : Variants ={
-  hidden: { opacity: 0, y: 30 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.6,
-      ease: "easeOut"
-    }
-  }
-};
-
-const statVariants: Variants =  {
-  hidden: { opacity: 0, scale: 0.8 },
-  visible: {
-    opacity: 1,
-    scale: 1,
-    transition: {
-      duration: 0.5,
-      ease: "easeOut"
-    }
-  }
-};
-
-// Counter component for stats
-const AnimatedCounter = ({ number, label }: { number: string; label: string }) => {
-  const [ref, inView] = useInView({
-    triggerOnce: true,
-    threshold: 0.3
-  });
-
-  const [count, setCount] = React.useState(0);
-
-  // Extract numeric value from string (remove + or %)
-  const numericValue = parseInt(number.replace(/[^0-9]/g, ''));
-  const isPercentage = number.includes('%');
-
-  React.useEffect(() => {
-    if (inView) {
-      let start = 0;
-      const duration = 2000; // 2 seconds
-      const increment = numericValue / (duration / 16); // 60fps
-      
-      const timer = setInterval(() => {
-        start += increment;
-        if (start >= numericValue) {
-          setCount(numericValue);
-          clearInterval(timer);
-        } else {
-          setCount(Math.floor(start));
-        }
-      }, 16);
-
-      return () => clearInterval(timer);
-    }
-  }, [inView, numericValue]);
-
-  return (
-    <motion.div
-      ref={ref}
-      variants={statVariants}
-      initial="hidden"
-      animate={inView ? "visible" : "hidden"}
-      className="text-center"
-    >
-      <div className="text-4xl font-bold text-blue-700 mb-1">
-        {isPercentage ? `${count}%` : `${count}+`}
-      </div>
-      <div className="text-gray-600 text-sm font-medium">
-        {label}
-      </div>
-    </motion.div>
-  );
-};
-
-// Interface for feature props
-interface Feature {
-  icon: string;
-  title: string;
+// Stat item component
+interface StatProps {
+  count: string;
   description: string;
+  index: number;
 }
 
-// Animated feature card component
-const AnimatedFeatureCard = ({ feature, index }: { feature: Feature; index: number }) => {
-  const [ref, inView] = useInView({
-    triggerOnce: true,
-    threshold: 0.1
+const StatsGrid = ({ count, description, index }: StatProps) => {
+  const ref = useRef(null);
+  const countRef = useRef(null);
+  const isInView = useInView(countRef, { once: false, amount: 0.5 });
+  
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"]
   });
 
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 80,
+    damping: 25,
+    restDelta: 0.001
+  });
+
+  const opacity = useTransform(smoothProgress, [0, 0.25, 0.75, 1], [0, 1, 1, 0]);
+  const y = useTransform(smoothProgress, [0, 0.25, 0.75, 1], [100, 0, 0, -100]);
+  const scale = useTransform(smoothProgress, [0, 0.25, 0.75, 1], [0.7, 1, 1, 0.7]);
+  const rotate = useTransform(smoothProgress, [0, 0.25, 0.75, 1], [8, 0, 0, -8]);
+
+  // Extract number from count string (e.g., "200+" -> 200, "99.9%" -> 99.9)
+  const numericValue = parseFloat(count.replace(/[^0-9.]/g, ''));
+  const suffix = count.replace(/[0-9.]/g, '');
+  
+  // Check if the original count contains a decimal point for proper formatting
+  const hasDecimal = count.includes('.');
+  
+  // Animated counter
+  const motionValue = useMotionValue(0);
+  const rounded = useTransform(motionValue, (latest) => {
+    if (hasDecimal) {
+      return latest.toFixed(1);
+    }
+    return Math.round(latest).toString();
+  });
+
+  useEffect(() => {
+    if (isInView) {
+      const controls = animate(motionValue, numericValue, {
+        duration: 2,
+        ease: "easeOut"
+      });
+      return controls.stop;
+    } else {
+      motionValue.set(0);
+    }
+  }, [isInView, numericValue, motionValue]);
+
+  // Individual character animation for the count
+  const { scrollYProgress: countProgress } = useScroll({
+    target: countRef,
+    offset: ["start end", "end start"]
+  });
+
+  const smoothCountProgress = useSpring(countProgress, {
+    stiffness: 60,
+    damping: 20,
+    restDelta: 0.001
+  });
+
+  const countY = useTransform(smoothCountProgress, [0, 0.3, 0.7, 1], [50, 0, 0, -50]);
+  const countRotate = useTransform(smoothCountProgress, [0, 0.3, 0.7, 1], [15, 0, 0, -15]);
+  const countScale = useTransform(smoothCountProgress, [0, 0.3, 0.7, 1], [0.6, 1, 1, 0.6]);
+  const countOpacity = useTransform(smoothCountProgress, [0, 0.3, 0.7, 1], [0, 1, 1, 0]);
+
   return (
-    <motion.div
+    <motion.li 
       ref={ref}
-      initial={{ opacity: 0, y: 30 }}
-      animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-      transition={{ 
-        duration: 0.6, 
-        ease: "easeOut",
-        delay: index * 0.2 // Stagger based on index
-      }}
-      className="border border-gray-200 p-6 rounded-lg transition-all duration-200 hover:border-blue-500 hover:shadow-sm"
+      className="-m-0.5 flex flex-col p-4 sm:p-8 relative"
+      style={{ opacity, y, scale, rotate }}
     >
-      <div className="flex items-start mb-4">
-        <motion.span 
-          className="text-2xl mr-3"
-          whileHover={{ scale: 1.1 }}
-          transition={{ type: "spring", stiffness: 300 }}
-        >
-          {feature.icon}
-        </motion.span>
-        <h3 className="text-lg font-semibold text-gray-900">
-          {feature.title}
-        </h3>
-      </div>
-      <p className="text-gray-600 text-sm">
-        {feature.description}
-      </p>
-    </motion.div>
+      <motion.div 
+        ref={countRef}
+        className="mb-2 flex items-end gap-x-2 text-3xl font-bold text-neutral-800 sm:text-5xl"
+        style={{
+          y: countY,
+          rotate: countRotate,
+          scale: countScale,
+          opacity: countOpacity
+        }}
+      >
+        <motion.span>{rounded}</motion.span>
+        <span>{suffix}</span>
+      </motion.div>
+      <motion.p 
+        className="text-sm text-neutral-600 sm:text-base"
+        style={{
+          opacity: useTransform(smoothProgress, [0, 0.3, 0.7, 1], [0, 1, 1, 0]),
+          y: useTransform(smoothProgress, [0, 0.3, 0.7, 1], [30, 0, 0, -30])
+        }}
+      >
+        {description}
+      </motion.p>
+    </motion.li>
   );
 };
 
-export default function AboutSection() {
-  const [headerRef, headerInView] = useInView({
-    triggerOnce: true,
-    threshold: 0.1
+// Main AboutSection component
+export default function About() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const titleRef = useRef(null);
+  const subtitleRef = useRef(null);
+  const statsContainerRef = useRef(null);
+
+  // Scroll progress for the entire section
+  const { scrollYProgress: sectionProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start end", "end start"]
   });
 
-  const [featuresRef, featuresInView] = useInView({
-    triggerOnce: true,
-    threshold: 0.1
+  const smoothSectionProgress = useSpring(sectionProgress, {
+    stiffness: 80,
+    damping: 25,
+    restDelta: 0.001
   });
 
-  const [statsRef, statsInView] = useInView({
-    triggerOnce: true,
-    threshold: 0.3
+  // Add white body background
+  useEffect(() => {
+    document.body.style.backgroundColor = 'white';
+    return () => {
+      document.body.style.backgroundColor = '';
+    };
+  }, []);
+
+  // Title animations
+  const { scrollYProgress: titleProgress } = useScroll({
+    target: titleRef,
+    offset: ["start end", "end start"]
   });
 
-  const features = [
-    {
-      icon: '💡',
-      title: 'Innovative Solutions',
-      description: 'We leverage cutting-edge technologies to build scalable solutions that drive digital transformation for businesses of all sizes.'
-    },
-    {
-      icon: '🚀',
-      title: 'Agile Development',
-      description: 'Our agile methodology ensures rapid delivery, continuous improvement, and seamless collaboration throughout the project lifecycle.'
-    },
-    {
-      icon: '🎯',
-      title: 'Client-Centric Approach',
-      description: 'We prioritize understanding your unique business needs to deliver customized solutions that exceed expectations.'
-    },
-    {
-      icon: '🔒',
-      title: 'Security First',
-      description: 'Enterprise-grade security measures are built into every solution we create, ensuring your data and operations remain protected.'
-    },
-    {
-      icon: '⚡',
-      title: 'Fast Performance',
-      description: 'Optimized code and modern architecture ensure lightning-fast performance and exceptional user experiences.'
-    },
-    {
-      icon: '🤝',
-      title: '24/7 Support',
-      description: 'Our dedicated support team is always available to assist you, ensuring smooth operations and quick resolution of any issues.'
-    }
-  ];
+  const smoothTitleProgress = useSpring(titleProgress, {
+    stiffness: 70,
+    damping: 25,
+    restDelta: 0.001
+  });
 
-  const stats = [
-    { number: '150+', label: 'Projects Delivered' },
-    { number: '50+', label: 'Happy Clients' },
-    { number: '25+', label: 'Team Members' },
-    { number: '99%', label: 'Client Satisfaction' }
-  ];
+  const titleOpacity = useTransform(smoothTitleProgress, [0, 0.2, 0.8, 1], [0, 1, 1, 0]);
+  const titleY = useTransform(smoothTitleProgress, [0, 0.2, 0.8, 1], [120, 0, 0, -120]);
+  const titleScale = useTransform(smoothTitleProgress, [0, 0.2, 0.8, 1], [0.85, 1, 1, 0.85]);
+  const titleRotate = useTransform(smoothTitleProgress, [0, 0.2, 0.8, 1], [-5, 0, 0, 5]);
+
+  // Subtitle animations
+  const { scrollYProgress: subtitleProgress } = useScroll({
+    target: subtitleRef,
+    offset: ["start end", "end start"]
+  });
+
+  const smoothSubtitleProgress = useSpring(subtitleProgress, {
+    stiffness: 70,
+    damping: 25,
+    restDelta: 0.001
+  });
+
+  const subtitleOpacity = useTransform(smoothSubtitleProgress, [0, 0.3, 0.7, 1], [0, 1, 1, 0]);
+  const subtitleY = useTransform(smoothSubtitleProgress, [0, 0.3, 0.7, 1], [80, 0, 0, -80]);
+  const subtitleX = useTransform(smoothSubtitleProgress, [0, 0.3, 0.7, 1], [-40, 0, 0, 40]);
+
+  // Stats container animation
+  const { scrollYProgress: statsProgress } = useScroll({
+    target: statsContainerRef,
+    offset: ["start end", "end start"]
+  });
+
+  const smoothStatsProgress = useSpring(statsProgress, {
+    stiffness: 70,
+    damping: 25,
+    restDelta: 0.001
+  });
+
+  const statsScale = useTransform(smoothStatsProgress, [0, 0.25, 0.75, 1], [0.9, 1, 1, 0.9]);
+  const statsRotate = useTransform(smoothStatsProgress, [0, 0.25, 0.75, 1], [3, 0, 0, -3]);
+
+  // Section background opacity and blur
+  const bgOpacity = useTransform(smoothSectionProgress, [0, 0.15, 0.85, 1], [0.3, 1, 1, 0.3]);
+  const bgScale = useTransform(smoothSectionProgress, [0, 0.15, 0.85, 1], [0.95, 1, 1, 0.95]);
+
+  // Updated data for Cyphernix IT Company
+  const aboutData = {
+    Abouttitle: "Know About <span class='text-blue-600'>Cyphernix</span>",
+    AboutsubTitle: "Cyphernix is a premier IT solutions provider specializing in cybersecurity, cloud infrastructure, and digital innovation. As an emerging leader in the technology sector, we deliver enterprise-grade solutions that empower businesses to thrive in the digital age. Our expertise spans secure network architecture, data protection, and scalable cloud services, all designed to future-proof your organization while maintaining the highest security standards.",
+    AboutprimaryBtn: "Learn More",
+    AboutprimaryBtnURL: "/about",
+    statistics: [
+      {
+        count: "200+",
+        description: "Successful IT projects delivered to enterprises and growing businesses across multiple industries.",
+      },
+      {
+        count: "99.9%",
+        description: "Uptime maintained for client infrastructure with our robust cloud and security solutions.",
+      },
+      {
+        count: "40%",
+        description: "Average reduction in security incidents for clients after implementing our cybersecurity framework.",
+      },
+      {
+        count: "2.5x",
+        description: "Faster deployment cycles achieved through our automated DevOps and cloud orchestration services.",
+      },
+    ]
+  };
 
   return (
-    <section className="py-16 px-4 bg-white">
-      <div className="max-w-6xl mx-auto">
-        {/* Header Section */}
-        <motion.div
-          ref={headerRef}
-          initial={{ opacity: 0, y: 40 }}
-          animate={headerInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 40 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="text-center mb-12"
-        >
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-            Building Tomorrow's Technology Today
-          </h2>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            We transform businesses through innovative technology solutions. Our team of experts creates digital experiences that drive growth and success.
-          </p>
-        </motion.div>
+    <motion.section 
+      ref={sectionRef}
+      className="mx-auto grid max-w-full gap-4 px-4 py-14 md:py-20 sm:px-6 md:grid-cols-2 md:items-center md:gap-8 lg:px-8 bg-white min-h-screen relative overflow-hidden"
+      style={{ opacity: bgOpacity, scale: bgScale }}
+    >
 
-        {/* Features Grid */}
-        <div
-          ref={featuresRef}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16"
-        >
-          {features.map((feature, index) => (
-            <AnimatedFeatureCard 
-              key={index} 
-              feature={feature} 
-              index={index} 
-            />
-          ))}
-        </div>
+      {/* Stats Section with crossable dividers */}
+      <motion.div 
+        ref={statsContainerRef}
+        className="flex w-full relative z-10"
+        style={{ scale: statsScale, rotate: statsRotate }}
+      >
+        {aboutData.statistics && (
+          <div className="mt-10 lg:col-span-6 lg:col-end-13 lg:mt-0 w-full">
+            <div className="space-y-6 sm:space-y-8">
+              <ul className="grid grid-cols-2 divide-x-2 divide-y-2 divide-neutral-300 overflow-hidden rounded-lg ">
+                {aboutData.statistics.map((stat, index) => (
+                  <StatsGrid 
+                    key={index}
+                    count={stat.count}
+                    description={stat.description}
+                    index={index}
+                  />
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+      </motion.div>
 
-        {/* Stats Section */}
-        <div
-          ref={statsRef}
-          className="grid grid-cols-2 md:grid-cols-4 gap-8 py-8 border-t border-gray-200"
-        >
-          {stats.map((stat, index) => (
-            <AnimatedCounter 
-              key={index}
-              number={stat.number} 
-              label={stat.label} 
-            />
-          ))}
+      {/* Content Section */}
+      <div className="relative z-10">
+        <div className="col-span-full h-5/2 pb-12 md:pt-5 pt-8 w-full rounded-xl sm:h-3/4 lg:col-span-7 lg:col-start-6 lg:h-full">
+          <motion.h2 
+            ref={titleRef}
+            className="block text-balance text-3xl px-5 font-bold tracking-tight text-neutral-800 sm:text-4xl lg:text-6xl lg:leading-tight"
+            dangerouslySetInnerHTML={{ __html: aboutData.Abouttitle }}
+            style={{ 
+              opacity: titleOpacity, 
+              y: titleY, 
+              scale: titleScale,
+              rotate: titleRotate
+            }}
+          />
+          
+          {aboutData.AboutsubTitle && (
+            <motion.p 
+              ref={subtitleRef}
+              className="mt-5 text-pretty text-base px-5 leading-relaxed text-neutral-700 w-11/12"
+              style={{ 
+                opacity: subtitleOpacity, 
+                y: subtitleY,
+                x: subtitleX
+              }}
+            >
+              {aboutData.AboutsubTitle}
+            </motion.p>
+          )}
         </div>
       </div>
-    </section>
+    </motion.section>
   );
 }
